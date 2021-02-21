@@ -1,2 +1,2 @@
-def tets_import():
+def test_import():
     import logline_server
