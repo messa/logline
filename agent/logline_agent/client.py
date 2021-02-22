@@ -64,6 +64,7 @@ class ClientConnection:
             self.writer.write(data)
         await self.writer.drain()
         reply_line = await self.reader.readline()
+        #logger.debug('Received reply line %r', reply_line)
         reply_line_parts = reply_line.decode('ascii').split()
         if len(reply_line_parts) == 2:
             reply_status, reply_length = reply_line_parts

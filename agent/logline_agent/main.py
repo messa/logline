@@ -101,10 +101,13 @@ async def follow_file(file_path, file_stream, client_factory):
                     chunk = file_stream.read(2**20)
                     assert isinstance(chunk, bytes)
                     if not chunk:
+                        # nothing was read
+                        #logger.debug('No new content was read from %s (fd: %s) pos %s', file_path, file_stream.fileno(), pos)
                         await sleep(1)
                         continue
                     logger.debug('Read %d bytes from %s (fd: %s) position %s', len(chunk), file_path, file_stream.fileno(), pos)
                     await client.send_data(pos, chunk)
+                    #logger.debug('client.send_data(%r, %r) done', pos, chunk)
             finally:
                 client.close()
         except Exception as e:

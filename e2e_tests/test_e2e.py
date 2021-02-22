@@ -64,6 +64,70 @@ def test_existing_log_file_gets_copied(tmp_path):
             sleep(.2)
 
 
+def test_log_file_update_gets_copied(tmp_path):
+    chdir(tmp_path)
+    Path('agent-src').mkdir()
+    Path('server-dst').mkdir()
+    Path('agent-src/sample.log').write_text('2021-02-22 Hello world!\n')
+    mangled_src_path = str(Path('agent-src').resolve()).strip('/').replace('/', '~')
+    expected_dst_file = Path('server-dst') / getfqdn() / mangled_src_path / 'sample.log'
+    port = 9999
+    with ExitStack() as stack:
+        agent_cmd = [
+            'logline-agent',
+            '--scan', 'agent-src/*.log',
+            '--server', f'127.0.0.1:{port}',
+        ]
+        server_cmd = [
+            'logline-server',
+            '--bind', f'127.0.0.1:{port}',
+            '--dest', 'server-dst',
+        ]
+        server_process = stack.enter_context(Popen(server_cmd))
+        stack.callback(terminate_process, server_process)
+        sleep(.1)
+        agent_process = stack.enter_context(Popen(agent_cmd))
+        stack.callback(terminate_process, agent_process)
+        t0 = monotime()
+        sleep(.1)
+        while True:
+            logger.debug('Checking after %.2f s...', monotime() - t0)
+            assert agent_process.poll() is None
+            assert server_process.poll() is None
+            check_call(['find', str(tmp_path)], stdout=2)
+            if not expected_dst_file.exists():
+                logger.debug('Still no file in %s', expected_dst_file)
+            else:
+                assert expected_dst_file.read_text() == '2021-02-22 Hello world!\n'
+                logger.debug('Destination file created! %s', expected_dst_file)
+                break
+            if monotime() - t0 > 2:
+                raise Exception('Deadline exceeded')
+            sleep(.1)
+        with Path('agent-src/sample.log').open(mode='a') as f:
+            f.write('Second line\n')
+        logger.info('File agent-src/sample.log was appended')
+        t0 = monotime()
+        sleep(.1)
+        while True:
+            logger.debug('Checking after %.2f s...', monotime() - t0)
+            assert agent_process.poll() is None
+            assert server_process.poll() is None
+            #check_call(['find', str(tmp_path)], stdout=2)
+            assert expected_dst_file.exists()
+            logger.debug('File %s contains: %r', expected_dst_file, expected_dst_file.read_text())
+            if expected_dst_file.read_text() == '2021-02-22 Hello world!\nSecond line\n':
+                logger.debug('Destination file updated! %s', expected_dst_file)
+                break
+            elif expected_dst_file.read_text() == '2021-02-22 Hello world!\n':
+                logger.debug('Destination file not updated yet: %s', expected_dst_file)
+            else:
+                raise Exception(f"Unknown dst file {expected_dst_file} content: {expected_dst_file.read_text()!r}")
+            if monotime() - t0 > 2:
+                raise Exception('Deadline exceeded')
+            sleep(.1)
+
+
 def test_new_log_file_gets_copied(tmp_path):
     chdir(tmp_path)
     Path('agent-src').mkdir()

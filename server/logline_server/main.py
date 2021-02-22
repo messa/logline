@@ -98,6 +98,7 @@ async def handle_client(conf, reader, writer):
             logger.debug('Writing %d bytes at offset %s to file %s (fd: %s)', len(data), f.tell(), dst_path, f.fileno())
             f.write(data)
             f.flush()
+            await send_reply(writer, 'ok', None)
 
     except ConnectionClosed:
         logger.info('Client closed connection')
