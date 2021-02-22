@@ -35,7 +35,7 @@ async def async_main(conf):
     client_factory = partial(connect_to_server, server_host=conf.server_host, server_port=conf.server_port)
     while True:
         await scan_for_new_files(conf, watched_paths, new_path_callback=lambda p: create_task(watch_path(p, client_factory)))
-        await sleep(60)
+        await sleep(1)
 
 
 async def scan_for_new_files(conf, watched_paths, new_path_callback):
