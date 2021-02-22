@@ -1,6 +1,8 @@
 from argparse import ArgumentParser
 from asyncio import run, sleep, start_server
+from datetime import datetime
 from functools import partial
+from io import SEEK_END
 import json
 from logging import getLogger
 from reprlib import repr as smart_repr
@@ -36,64 +38,132 @@ async def async_main(conf):
 
 
 async def handle_client(conf, reader, writer):
+    f = None
     try:
         addr = writer.get_extra_info('peername')
-        logger.info('New client: %s', addr)
-        header = None
-        while True:
-            line = await reader.readline()
-            logger.debug('Received: %s', smart_repr(line))
-            command, meta_length, data_length = line.decode('ascii').split()
-            meta_length = int(meta_length)
-            data_length = int(data_length)
-            meta_bytes = await reader.readexactly(meta_length)
-            metadata = json.loads(meta_bytes)
-            del meta_bytes
-            logger.debug('Received %s metadata: %s', command, metadata)
-            data = await reader.readexactly(data_length)
-            if command == 'logline-agent-v1':
-                if header:
-                    raise Exception('Header already received')
-                logger.debug('Received logline-agent-v1, replying with ok')
-                header = metadata
-                writer.write(b'ok 0\n')
-                await writer.drain()
-            elif command == 'save':
-                if not header:
-                    raise Exception('Header not received yet')
-                await process_save(conf, header, metadata, data)
-                writer.write(b'ok 0\n')
-                await writer.drain()
+        logger.info('New client has connected: %s', addr)
+        command, metadata, data = await recv_command(reader)
+        if command != 'logline-agent-v1' or data:
+            raise Exception(f"Protocol error - received {smart_repr(command)} as first command")
+        header = metadata
+        assert header['hostname']
+        assert header['path']
+        assert header['prefix']
+
+        *dir_parts, filename = header['path'].strip('/').split('/')
+        dst_path = conf.destination_directory / header['hostname'] / '~'.join(dir_parts) / filename
+
+        if not dst_path.parent.is_dir():
+            if not dst_path.parent.parent.is_dir():
+                logger.debug('Creating directory: %s', dst_path.parent.parent)
+                dst_path.parent.parent.mkdir()
+            logger.debug('Creating directory: %s', dst_path.parent)
+            dst_path.parent.mkdir()
+
+        try:
+            f = dst_path.open('rb+')
+        except FileNotFoundError:
+            f = None
+            logger.debug('File does not exist yet: %s', dst_path)
+        else:
+            assert f.tell() == 0
+            f_prefix = f.read(header['prefix']['length'])
+            if f_prefix and sha1_b64(f_prefix) == header['prefix']['sha1']:
+                # it's the correct file :)
+                logger.info('File has the correct prefix: %s', dst_path)
             else:
-                raise Exception(f'Unknown command: {command!r}')
+                # need to create new file
+                logger.info('File has different prefix, rotating: %s', dst_path)
+                f.close()
+                f = None
+                iso_dt = datetime.utcnow().strftime('%Y%m%dT%H%M%SZ')
+                dst_path.rename(dst_path.with_name(dst_path.name + f".rotated-{iso_dt}"))
+
+        if not f:
+            logger.info('Creating new file: %s', dst_path)
+            f = dst_path.open('wb+')
+
+        f.seek(0, SEEK_END)
+        f_length = f.tell()
+
+        await send_reply(writer, 'ok', {'length': f_length})
+
+        while True:
+            command, metadata, data = await recv_command(reader)
+            if command != 'data':
+                raise Exception(f"Protocol error - expected 'data', received {smart_repr(command)}")
+            assert isinstance(data, bytes)
+            assert metadata['compression'] is None
+            assert f.tell() == metadata['offset']
+            logger.debug('Writing %d bytes at offset %s to file %s (fd: %s)', len(data), f.tell(), dst_path, f.fileno())
+            f.write(data)
+            f.flush()
+
+    except ConnectionClosed:
+        logger.info('Client closed connection')
     except Exception as e:
         logger.exception('Failed to handle client: %r', e)
     finally:
         logger.info('Closing connection')
         writer.close()
+        if f:
+            f.close()
 
 
-async def process_save(conf, header, metadata, data):
-    logger.debug('process_save %r %d B', metadata, len(data))
-    # process_save {'path': '/tmp/pytest-of-messa/pytest-119/test_existing_log_file_gets_co0/agent-src/sample.log', 'pos': 0, 'prefix': {'length': 13, 'sha1': 'R6AT5mDUCGGdiUsggGsdUIaqsDs='}} 13 B
-    *dir_parts, filename = metadata['path'].strip('/').split('/')
-    dst_path = conf.destination_directory / header['hostname'] / '~'.join(dir_parts) / filename
-    logger.debug('dst_path: %s', dst_path)
-    dst_path.parent.mkdir(exist_ok=True, parents=True)
-    try:
-        f = dst_path.open('rb+')
-    except FileNotFoundError:
-        logger.info('Creating new file: %s', dst_path)
-        f = dst_path.open('wb+')
-    f_prefix = f.read(metadata['prefix']['length'])
-    if not f_prefix:
-        if metadata['pos'] != 0:
-            raise Exception('Our file is empty, but about to write from some offset')
+class ConnectionClosed (Exception):
+    pass
+
+
+async def recv_command(reader):
+    line = await reader.readline()
+    if not line:
+        raise ConnectionClosed()
+    parts = line.decode('ascii').split()
+    if len(parts) == 1:
+        command, = parts
+        return command, None, None
+    if len(parts) == 2:
+        command, metadata_size = parts
+        metadata_size = int(metadata_size)
+        data_size = None
+    elif len(parts) == 3:
+        command, metadata_size, data_size = parts
+        metadata_size = int(metadata_size)
+        data_size = int(data_size)
     else:
-        if len(f_prefix) != metadata['prefix']['length']:
-            raise Exception('We have incomplete prefix')
-        # TODO: check prefix
-    f.seek(metadata['pos'])
-    f.write(data)
-    f.close()
-    logger.debug('Wrote %d bytes to %s', len(data), dst_path)
+        raise Exception(f"Failed to parse command line: {smart_repr(line)}")
+    metadata_bytes = await reader.readexactly(metadata_size)
+    metadata = json.loads(metadata_bytes)
+    if data_size is None:
+        data = None
+    elif data_size == 0:
+        data = b''
+    else:
+        data = await reader.readexactly(data_size)
+    if data is None:
+        logger.debug('Received %s %r', command, metadata)
+    else:
+        logger.debug('Received %s %r + %d B data', command, metadata, len(data))
+    return command, metadata, data
+
+
+async def send_reply(writer, status, payload):
+    assert isinstance(status, str)
+    if payload is None:
+        writer.write(f'{status}\n'.encode('ascii'))
+        logger.debug('Sent reply %s -', status)
+    else:
+        payload_bytes = json.dumps(payload).encode('utf-8')
+        writer.write(f'{status} {len(payload_bytes)}\n'.encode('ascii'))
+        writer.write(payload_bytes)
+        logger.debug('Sent reply %s %r', status, payload)
+    await writer.drain()
+
+
+def sha1_b64(data):
+    import hashlib
+    from base64 import b64encode
+    return b64encode(hashlib.sha1(data).digest()).decode('ascii')
+
+
+assert sha1_b64(b'hello') == 'qvTGHdzF6KLavt4PO0gs2a6pQ00='

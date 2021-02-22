@@ -8,38 +8,83 @@ import json
 logger = getLogger(__name__)
 
 
-class Client:
-    '''
-    Client for Logline Server
-    '''
+async def connect_to_server(server_host, server_port, log_path, log_prefix):
+    assert isinstance(log_prefix, bytes)
+    logger.debug('Connecting to %s:%s', server_host, server_port)
+    reader, writer = await open_connection(server_host, server_port)
+    cc = ClientConnection(reader, writer)
+    await cc.send_header({
+        'hostname': getfqdn(),
+        'path': str(log_path),
+        'prefix': {
+            'length': len(log_prefix),
+            'sha1': sha1_b64(log_prefix),
+        },
+    })
+    assert cc.header_reply
+    return cc
 
-    def __init__(self, server_host, server_port):
-        self.server_host = server_host
-        self.server_port = server_port
 
-    async def send_data(self, file_path, prefix, pos, chunk):
-        assert isinstance(prefix, bytes)
-        assert isinstance(chunk, bytes)
-        logger.debug('send_data(%s, %s, %s, %s)', file_path, smart_repr(prefix), pos, smart_repr(chunk))
-        cc = await self._initiate_connection()
+class ClientConnection:
+
+    def __init__(self, reader, writer):
+        self.reader = reader
+        self.writer = writer
+        self.header_reply = None
+
+    def close(self):
+        self.writer.close()
+
+    async def send_header(self, header):
+        self.header_reply = await self._send_command('logline-agent-v1', header)
+
+    async def send_data(self, offset, content):
+        assert isinstance(offset, int)
+        assert isinstance(content, bytes)
         metadata = {
-            'path': str(file_path),
-            'pos': pos,
-            'prefix': {
-                'length': len(prefix),
-                'sha1': sha1_b64(prefix),
-            },
+            'offset': offset,
+            'compression': None,
         }
-        await cc.send_command(b'save', metadata, chunk)
+        await self._send_command('data', metadata, content)
 
-    async def _initiate_connection(self):
-        reader, writer = await open_connection(self.server_host, self.server_port)
-        cc = ClientConnection(reader, writer)
-        header = {
-            'hostname': getfqdn(),
-        }
-        reply = await cc.send_command(b'logline-agent-v1', header)
-        return cc
+    async def _send_command(self, command, metadata, data=None):
+        assert isinstance(command, str)
+        assert isinstance(metadata, dict)
+        md_bytes = json.dumps(metadata).encode()
+        md_bytes += b'\n'
+        if data is None:
+            logger.debug('Sending: %s %s', command, metadata)
+            self.writer.write(f'{command} {len(md_bytes)}\n'.encode('ascii'))
+            self.writer.write(md_bytes)
+        else:
+            assert isinstance(data, bytes)
+            logger.debug('Sending: %s %s + %d B data', command, metadata, len(data))
+            self.writer.write(f'{command} {len(md_bytes)} {len(data)}\n'.encode('ascii'))
+            self.writer.write(md_bytes)
+            self.writer.write(data)
+        await self.writer.drain()
+        reply_line = await self.reader.readline()
+        reply_line_parts = reply_line.decode('ascii').split()
+        if len(reply_line_parts) == 2:
+            reply_status, reply_length = reply_line_parts
+            reply_length = int(reply_length)
+        else:
+            reply_status, = reply_line_parts
+            reply_length = 0
+        if reply_length:
+            reply_json = await self.reader.readexactly(reply_length)
+            reply = json.loads(reply_json)
+            del reply_json
+        else:
+            reply = None
+        if reply_status == 'ok':
+            logger.debug('Received reply: %s %s', reply_status, '-' if reply is None else repr(reply))
+            return reply
+        elif reply_status == 'error':
+            logger.warning('Received reply: %s %s', reply_status, '-' if reply is None else repr(reply))
+            raise Exception(f'Error reply: {reply}')
+        else:
+            raise Exception('Protocol error')
 
 
 def sha1_b64(data):
@@ -48,35 +93,4 @@ def sha1_b64(data):
     return b64encode(hashlib.sha1(data).digest()).decode('ascii')
 
 
-class ClientConnection:
-
-    def __init__(self, reader, writer):
-        self.reader = reader
-        self.writer = writer
-
-    async def send_command(self, command, metadata, data=b''):
-        assert isinstance(command, bytes)
-        assert isinstance(metadata, dict)
-        assert isinstance(data, bytes)
-        logger.debug('Sending command: %s %s %d B', command, metadata, len(data))
-        md_bytes = json.dumps(metadata).encode()
-        md_bytes += b'\n'
-        self.writer.write(command)
-        self.writer.write(f' {len(md_bytes)} {len(data)}\n'.encode('ascii'))
-        self.writer.write(md_bytes)
-        self.writer.write(data)
-        await self.writer.drain()
-        reply_line = await self.reader.readline()
-        reply_status, reply_length = reply_line.decode().split()
-        reply_length = int(reply_length)
-        if reply_length:
-            reply_json = await self.reader.readexactly(reply_length)
-            reply = json.loads(reply_json)
-        else:
-            reply = {}
-        if reply_status == 'ok':
-            return reply
-        elif reply_status == 'error':
-            raise Exception(f'Error reply: {reply}')
-        else:
-            raise Exception('Protocol error')
+assert sha1_b64(b'hello') == 'qvTGHdzF6KLavt4PO0gs2a6pQ00='

@@ -26,7 +26,7 @@ def test_existing_log_file_gets_copied(tmp_path):
     chdir(tmp_path)
     Path('agent-src').mkdir()
     Path('server-dst').mkdir()
-    Path('agent-src/sample.log').write_text('Hello world!\n')
+    Path('agent-src/sample.log').write_text('2021-02-22 Hello world!\n')
     mangled_src_path = str(Path('agent-src').resolve()).strip('/').replace('/', '~')
     expected_dst_file = Path('server-dst') / getfqdn() / mangled_src_path / 'sample.log'
     port = 9999
@@ -56,7 +56,7 @@ def test_existing_log_file_gets_copied(tmp_path):
             if not expected_dst_file.exists():
                 logger.debug('Still no file in %s', expected_dst_file)
             else:
-                assert expected_dst_file.read_text() == 'Hello world!\n'
+                assert expected_dst_file.read_text() == '2021-02-22 Hello world!\n'
                 logger.debug('Destination file created! %s', expected_dst_file)
                 break
             if monotime() - t0 > 5:

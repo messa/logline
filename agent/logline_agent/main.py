@@ -1,12 +1,13 @@
 from argparse import ArgumentParser
 from asyncio import run, sleep, create_task
+from functools import partial
 from glob import glob
 from logging import getLogger
 from os import fstat
 from pathlib import Path
 
 from .configuration import Configuration
-from .client import Client
+from .client import connect_to_server
 
 
 logger = getLogger(__name__)
@@ -31,9 +32,9 @@ def setup_logging():
 
 async def async_main(conf):
     watched_paths = {}
-    client = Client(conf.server_host, conf.server_port)
+    client_factory = partial(connect_to_server, server_host=conf.server_host, server_port=conf.server_port)
     while True:
-        await scan_for_new_files(conf, watched_paths, new_path_callback=lambda p: create_task(watch_file(p, client=client)))
+        await scan_for_new_files(conf, watched_paths, new_path_callback=lambda p: create_task(watch_path(p, client_factory)))
         await sleep(60)
 
 
@@ -49,7 +50,7 @@ async def scan_for_new_files(conf, watched_paths, new_path_callback):
                 watched_paths[str(p)] = new_path_callback(p)
 
 
-async def watch_file(file_path, client):
+async def watch_path(file_path, client_factory):
     last_inode = None
     while True:
         if file_path.stat().st_ino == last_inode:
@@ -64,28 +65,53 @@ async def watch_file(file_path, client):
             f.close()
             continue
         if last_inode is None:
-            logger.info('Watching file: %s (inode: %s fd: %s)', file_path, f_inode, f.fileno())
+            logger.info('Detected file: %s (inode: %s fd: %s)', file_path, f_inode, f.fileno())
         else:
             logger.info('File rotated: %s (inode: %s -> %s fd: %s)', file_path, last_inode, f_inode, f.fileno())
-        create_task(send_file(file_path, f, client))
+        create_task(follow_file(file_path, f, client_factory))
         last_inode = f_inode
 
 
-async def send_file(file_path, file_stream, client):
-    prefix = None
+async def follow_file(file_path, file_stream, client_factory):
     while True:
-        pos = file_stream.tell()
-        chunk = file_stream.read(65536)
-        assert isinstance(chunk, bytes)
-        if not chunk:
-            await sleep(1)
+        try:
+            while True:
+                file_stream.seek(0)
+                prefix = file_stream.read(4096)
+                if len(prefix) < 20:
+                    logger.debug('File is too small: %s (fd: %s)', file_path, file_stream.fileno())
+                    await sleep(10)
+                    continue
+                else:
+                    break
+            logger.debug('File %s (fd: %s) prefix: %r', file_path, file_stream.fileno(), prefix)
+            assert prefix
+            logger.debug('Connecting to server for file %s (fd: %s)', file_path, file_stream.fileno())
+            client = await client_factory(log_path=file_path, log_prefix=prefix)
+            try:
+                server_length = client.header_reply['length']
+                file_stream.seek(server_length)
+                if file_stream.tell() != server_length:
+                    logger.warning('Failed to seek %s (fd: %s) to %s - got to %s', file_path, file_stream.fileno(), server_length, file_stream.tell())
+                    raise Exception(f"Failed to seek {file_path} to {server_length}")
+                else:
+                    logger.debug('Seeked %s (fd: %s) to %s', file_path, file_stream.fileno(), server_length)
+                while True:
+                    pos = file_stream.tell()
+                    chunk = file_stream.read(2**20)
+                    assert isinstance(chunk, bytes)
+                    if not chunk:
+                        await sleep(1)
+                        continue
+                    logger.debug('Read %d bytes from %s (fd: %s) position %s', len(chunk), file_path, file_stream.fileno(), pos)
+                    await client.send_data(pos, chunk)
+            finally:
+                client.close()
+        except Exception as e:
+            logger.exception('Failed to follow file %s (fd: %r): %r', file_path, file_stream.fileno(), e)
+            await sleep(10)
+            logger.info('Trying again to follow file %s (fd: %r)', file_path, file_stream.fileno())
             continue
-        logger.debug('Read %d bytes from %s (fd %s) position %s', len(chunk), file_path, file_stream.fileno(), pos)
-        # get the prefix
-        if not prefix:
-            prefix = read_prefix(file_stream)
-        # now send to the server :)
-        await client.send_data(file_path, prefix, pos, chunk)
 
 
 def read_prefix(f):
