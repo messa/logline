@@ -55,7 +55,7 @@ async def watch_path(file_path, client_factory):
     while True:
         if file_path.stat().st_ino == last_inode:
             # No change, still the same file
-            await sleep(5)
+            await sleep(1)
             continue
         f = file_path.open(mode='rb')
         f_inode = fstat(f.fileno()).st_ino
