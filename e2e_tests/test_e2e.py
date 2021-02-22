@@ -4,6 +4,7 @@ import os
 from os import chdir
 from pathlib import Path
 from pytest import skip
+from socket import getfqdn
 from subprocess import Popen, check_call
 import sys
 from time import sleep
@@ -27,7 +28,7 @@ def test_existing_log_file_gets_copied(tmp_path):
     Path('server-dst').mkdir()
     Path('agent-src/sample.log').write_text('Hello world!\n')
     mangled_src_path = str(Path('agent-src').resolve()).strip('/').replace('/', '~')
-    expected_dst_file = Path('server-dst') / mangled_src_path / 'sample.log'
+    expected_dst_file = Path('server-dst') / getfqdn() / mangled_src_path / 'sample.log'
     port = 9999
     with ExitStack() as stack:
         agent_cmd = [
@@ -40,12 +41,13 @@ def test_existing_log_file_gets_copied(tmp_path):
             '--bind', f'127.0.0.1:{port}',
             '--dest', 'server-dst',
         ]
-        agent_process = stack.enter_context(Popen(agent_cmd))
-        stack.callback(terminate_process, agent_process)
         server_process = stack.enter_context(Popen(server_cmd))
         stack.callback(terminate_process, server_process)
+        sleep(.1)
+        agent_process = stack.enter_context(Popen(agent_cmd))
+        stack.callback(terminate_process, agent_process)
         t0 = monotime()
-        sleep(.5)
+        sleep(.1)
         while True:
             logger.debug('Checking after %.2f s...', monotime() - t0)
             assert agent_process.poll() is None
@@ -57,9 +59,9 @@ def test_existing_log_file_gets_copied(tmp_path):
                 assert expected_dst_file.read_text() == 'Hello world!\n'
                 logger.debug('Destination file created! %s', expected_dst_file)
                 break
-            if monotime() - t0 > 10:
+            if monotime() - t0 > 5:
                 raise Exception('Deadline exceeded')
-            sleep(1)
+            sleep(.2)
 
 
 def terminate_process(p):
