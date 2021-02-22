@@ -1,4 +1,5 @@
 from logging import getLogger
+from pathlib import Path
 import re
 
 
@@ -12,6 +13,11 @@ class Configuration:
         self.scan_globs.extend(args.scan)
         logger.debug('scan_globs: %r', self.scan_globs)
         self.server_host, self.server_port = parse_address(args.server)
+        self.tls = args.tls
+        if self.tls:
+            self.tls_cert_file = None
+            if args.tls_cert:
+                self.tls_cert_file = Path(args.tls_cert)
 
 
 def parse_address(s):

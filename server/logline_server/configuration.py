@@ -1,4 +1,5 @@
 from logging import getLogger
+import os
 from pathlib import Path
 import re
 
@@ -18,6 +19,10 @@ class Configuration:
             self.destination_directory = Path(args.dest)
         else:
             raise ConfigurationError('Destination directory not configured')
+        self.tls_cert_file = args.tls_cert
+        self.tls_key_file = args.tls_key
+        self.tls_password = os.environ.get('TLS_KEY_PASSWORD')
+        self.tls = bool(self.tls_cert_file)
 
 
 def parse_address(s):

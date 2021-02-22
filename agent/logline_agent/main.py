@@ -17,6 +17,8 @@ def agent_main():
     p = ArgumentParser()
     p.add_argument('--scan', action='append')
     p.add_argument('--server')
+    p.add_argument('--tls', action='store_true')
+    p.add_argument('--tls-cert', help='path to the file with certificate in PEM format')
     args = p.parse_args()
     setup_logging()
     conf = Configuration(args=args)
@@ -32,7 +34,7 @@ def setup_logging():
 
 async def async_main(conf):
     watched_paths = {}
-    client_factory = partial(connect_to_server, server_host=conf.server_host, server_port=conf.server_port)
+    client_factory = partial(connect_to_server, conf=conf, server_host=conf.server_host, server_port=conf.server_port)
     while True:
         await scan_for_new_files(conf, watched_paths, new_path_callback=lambda p: create_task(watch_path(p, client_factory)))
         await sleep(1)

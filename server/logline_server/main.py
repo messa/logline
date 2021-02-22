@@ -17,6 +17,8 @@ def server_main():
     p = ArgumentParser()
     p.add_argument('--bind', default=':5645')
     p.add_argument('--dest', help='directory to store the received logs')
+    p.add_argument('--tls-cert', help='path to the file with certificate in PEM format')
+    p.add_argument('--tls-key', help='path to the file with key in PEM format')
     args = p.parse_args()
     setup_logging()
     conf = Configuration(args=args)
@@ -31,7 +33,20 @@ def setup_logging():
 
 
 async def async_main(conf):
-    server = await start_server(partial(handle_client, conf), conf.bind_host, conf.bind_port)
+    if conf.tls:
+        from ssl import create_default_context, Purpose
+        ssl_context = create_default_context(purpose=Purpose.CLIENT_AUTH)
+        logger.debug('Using TLS; certfile: %s keyfile: %s', conf.tls_cert_file, conf.tls_key_file)
+        ssl_context.load_cert_chain(
+            certfile=conf.tls_cert_file,
+            keyfile=conf.tls_key_file,
+            password=conf.tls_password)
+    else:
+        ssl_context = None
+    server = await start_server(
+        partial(handle_client, conf),
+        conf.bind_host, conf.bind_port,
+        ssl=ssl_context)
     logger.info('Listening on %s', ' '.join(str(s.getsockname()) for s in server.sockets))
     async with server:
         await server.serve_forever()

@@ -8,10 +8,18 @@ import json
 logger = getLogger(__name__)
 
 
-async def connect_to_server(server_host, server_port, log_path, log_prefix):
+async def connect_to_server(conf, server_host, server_port, log_path, log_prefix):
     assert isinstance(log_prefix, bytes)
     logger.debug('Connecting to %s:%s', server_host, server_port)
-    reader, writer = await open_connection(server_host, server_port)
+    if conf.tls:
+        from ssl import create_default_context, Purpose
+        logger.debug('Using TLS; cafile: %s', '-' if conf.tls_cert_file is None else conf.tls_cert_file)
+        ssl_context = create_default_context(
+            purpose=Purpose.SERVER_AUTH,
+            cafile=conf.tls_cert_file)
+    else:
+        ssl_context = None
+    reader, writer = await open_connection(server_host, server_port, ssl=ssl_context)
     cc = ClientConnection(reader, writer)
     await cc.send_header({
         'hostname': getfqdn(),
