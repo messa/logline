@@ -10,3 +10,8 @@ def pytest_configure(config):
     if bin_path not in os.environ['PATH'].split(':'):
         os.environ['PATH'] = f"{bin_path}:{os.environ['PATH']}"
         print('PATH modified to:', os.environ['PATH'])
+
+    from logging import basicConfig, DEBUG
+    basicConfig(
+        format='%(asctime)s [pytest %(process)d] %(name)s %(levelname)5s: %(message)s',
+        level=DEBUG)

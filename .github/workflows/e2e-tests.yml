@@ -36,4 +36,4 @@ jobs:
         python -m pip install ./server
     - name: Test with pytest
       run: |
-        pytest -v --tb=native e2e_tests
+        pytest -v --tb=native -p no:logging e2e_tests
