@@ -15,9 +15,10 @@ logger = getLogger(__name__)
 
 def server_main():
     p = ArgumentParser()
+    p.add_argument('--conf', help='path to configuration file')
     p.add_argument('--log', help='path to log file')
     p.add_argument('--verbose', '-v', action='store_true')
-    p.add_argument('--bind', default=':5645')
+    p.add_argument('--bind')
     p.add_argument('--dest', help='directory to store the received logs')
     p.add_argument('--tls-cert', help='path to the file with certificate in PEM format')
     p.add_argument('--tls-key', help='path to the file with key in PEM format')
@@ -62,7 +63,7 @@ def setup_log_file(log_file_path):
 
 
 async def async_main(conf):
-    if conf.tls:
+    if conf.use_tls:
         from ssl import create_default_context, Purpose
         ssl_context = create_default_context(purpose=Purpose.CLIENT_AUTH)
         logger.debug('Using TLS; certfile: %s keyfile: %s', conf.tls_cert_file, conf.tls_key_file)

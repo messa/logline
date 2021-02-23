@@ -15,6 +15,7 @@ logger = getLogger(__name__)
 
 def agent_main():
     p = ArgumentParser()
+    p.add_argument('--conf', help='path to configuration file')
     p.add_argument('--log', help='path to log file')
     p.add_argument('--verbose', '-v', action='store_true')
     p.add_argument('--scan', action='append')
@@ -62,7 +63,9 @@ def setup_log_file(log_file_path):
 
 async def async_main(conf):
     watched_paths = {}
-    client_factory = partial(connect_to_server, conf=conf, server_host=conf.server_host, server_port=conf.server_port)
+    assert conf.server_host
+    assert conf.server_port
+    client_factory = partial(connect_to_server, conf=conf)
     while True:
         await scan_for_new_files(conf, watched_paths, new_path_callback=lambda p: create_task(watch_path(p, client_factory)))
         await sleep(1)
