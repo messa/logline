@@ -13,6 +13,10 @@ class ConfigurationError (Exception):
 class Configuration:
 
     def __init__(self, args):
+        if args.log:
+            self.log_file = Path(args.log)
+        else:
+            self.log_file = None
         self.scan_globs = []
         if args.scan:
             self.scan_globs.extend(args.scan)

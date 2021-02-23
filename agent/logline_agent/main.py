@@ -15,21 +15,49 @@ logger = getLogger(__name__)
 
 def agent_main():
     p = ArgumentParser()
+    p.add_argument('--log', help='path to log file')
+    p.add_argument('--verbose', '-v', action='store_true')
     p.add_argument('--scan', action='append')
     p.add_argument('--server')
     p.add_argument('--tls', action='store_true')
     p.add_argument('--tls-cert', help='path to the file with certificate in PEM format')
     args = p.parse_args()
-    setup_logging()
+    setup_logging(verbose=args.verbose)
     conf = Configuration(args=args)
+    setup_log_file(conf.log_file)
     run(async_main(conf))
 
 
-def setup_logging():
-    from logging import basicConfig, DEBUG
-    basicConfig(
-        format='%(asctime)s [%(process)d] %(name)s %(levelname)5s: %(message)s',
-        level=DEBUG)
+log_format = '%(asctime)s [%(process)d] %(name)s %(levelname)5s: %(message)s'
+
+stderr_log_handler = None
+
+
+def setup_logging(verbose):
+    global stderr_log_handler
+    from logging import DEBUG, INFO, getLogger, Formatter, StreamHandler
+    h = StreamHandler()
+    h.setFormatter(Formatter(log_format))
+    h.setLevel(DEBUG if verbose else INFO)
+    getLogger('').addHandler(h)
+    getLogger('').setLevel(DEBUG)
+    stderr_log_handler = h
+
+
+def setup_log_file(log_file_path):
+    global stderr_log_handler
+    from logging import DEBUG, INFO, ERROR, getLogger, Formatter
+    from logging.handlers import WatchedFileHandler
+    if not log_file_path:
+        return
+    h = WatchedFileHandler(str(log_file_path))
+    h.setFormatter(Formatter(log_format))
+    h.setLevel(DEBUG)
+    getLogger('').addHandler(h)
+    if stderr_log_handler:
+        # decrease stderr handler level since we are logging into file instead
+        if stderr_log_handler.level == INFO:
+            stderr_log_handler.setLevel(ERROR)
 
 
 async def async_main(conf):

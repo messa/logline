@@ -14,6 +14,10 @@ class ConfigurationError (Exception):
 class Configuration:
 
     def __init__(self, args):
+        if args.log:
+            self.log_file = Path(args.log)
+        else:
+            self.log_file = None
         self.bind_host, self.bind_port = parse_address(args.bind)
         if args.dest:
             self.destination_directory = Path(args.dest)
