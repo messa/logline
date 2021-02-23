@@ -6,11 +6,18 @@ import re
 logger = getLogger(__name__)
 
 
+class ConfigurationError (Exception):
+    pass
+
+
 class Configuration:
 
     def __init__(self, args):
         self.scan_globs = []
-        self.scan_globs.extend(args.scan)
+        if args.scan:
+            self.scan_globs.extend(args.scan)
+        if not self.scan_globs:
+            raise ConfigurationError('No log sources were specified')
         logger.debug('scan_globs: %r', self.scan_globs)
         self.server_host, self.server_port = parse_address(args.server)
         self.tls = args.tls
