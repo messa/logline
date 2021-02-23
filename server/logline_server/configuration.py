@@ -21,7 +21,10 @@ class Configuration:
             raise ConfigurationError('Destination directory not configured')
         self.tls_cert_file = args.tls_cert
         self.tls_key_file = args.tls_key
-        self.tls_password = os.environ.get('TLS_KEY_PASSWORD')
+        if args.tls_key_password_file:
+            self.tls_password = Path(args.tls_key_password_file).read_text().strip()
+        else:
+            self.tls_password = os.environ.get('TLS_KEY_PASSWORD')
         self.tls = bool(self.tls_cert_file)
 
 

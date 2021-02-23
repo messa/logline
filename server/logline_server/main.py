@@ -19,6 +19,7 @@ def server_main():
     p.add_argument('--dest', help='directory to store the received logs')
     p.add_argument('--tls-cert', help='path to the file with certificate in PEM format')
     p.add_argument('--tls-key', help='path to the file with key in PEM format')
+    p.add_argument('--tls-key-password-file', help='path to the file with key password in plaintext')
     args = p.parse_args()
     setup_logging()
     conf = Configuration(args=args)
