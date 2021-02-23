@@ -31,6 +31,8 @@ def agent_main():
 
 log_format = '%(asctime)s [%(process)d] %(name)s %(levelname)5s: %(message)s'
 
+own_log_files = set()
+
 stderr_log_handler = None
 
 
@@ -55,6 +57,7 @@ def setup_log_file(log_file_path):
     h.setFormatter(Formatter(log_format))
     h.setLevel(DEBUG)
     getLogger('').addHandler(h)
+    own_log_files.add(Path(log_file_path).resolve())
     if stderr_log_handler:
         # decrease stderr handler level since we are logging into file instead
         if stderr_log_handler.level == INFO:
@@ -72,7 +75,7 @@ async def async_main(conf):
 
 
 async def scan_for_new_files(conf, watched_paths, new_path_callback):
-    logger.debug('Scanning...')
+    #logger.debug('Scanning...')
     for glob_str in conf.scan_globs:
         #logger.debug('Scanning glob %s', glob_str)
         paths = glob(glob_str, recursive=True)
@@ -84,11 +87,16 @@ async def scan_for_new_files(conf, watched_paths, new_path_callback):
 
 
 async def watch_path(file_path, client_factory):
+    assert file_path == file_path.resolve()
     last_inode = None
     while True:
         if file_path.stat().st_ino == last_inode:
             # No change, still the same file
-            await sleep(1)
+            if file_path in own_log_files:
+                # do not process our own logfile too often to avoid too much noise
+                await sleep(60)
+            else:
+                await sleep(1)
             continue
         f = file_path.open(mode='rb')
         f_inode = fstat(f.fileno()).st_ino
