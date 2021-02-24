@@ -92,11 +92,7 @@ async def watch_path(file_path, client_factory):
     while True:
         if file_path.stat().st_ino == last_inode:
             # No change, still the same file
-            if file_path in own_log_files:
-                # do not process our own logfile too often to avoid too much noise
-                await sleep(60)
-            else:
-                await sleep(1)
+            await sleep(1)
             continue
         f = file_path.open(mode='rb')
         f_inode = fstat(f.fileno()).st_ino
@@ -149,6 +145,9 @@ async def follow_file(file_path, file_stream, client_factory):
                     logger.debug('Read %d bytes from %s (fd: %s) position %s', len(chunk), file_path, file_stream.fileno(), pos)
                     await client.send_data(pos, chunk)
                     #logger.debug('client.send_data(%r, %r) done', pos, chunk)
+                    if file_path in own_log_files:
+                        # do not process our own logfile too often to avoid too much noise
+                        await sleep(60)
             finally:
                 client.close()
         except Exception as e:
