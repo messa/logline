@@ -23,8 +23,8 @@ class Configuration:
     def __init__(self, args):
         if args.conf:
             cfg_path = Path(args.conf)
-        elif os.environ.get('CONF'):
-            cfg_path = Path(os.environ['CONF'])
+        elif os.environ.get('CONF_FILE'):
+            cfg_path = Path(os.environ['CONF_FILE'])
         else:
             cfg_path = None
 
