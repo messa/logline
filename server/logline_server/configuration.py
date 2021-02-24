@@ -51,7 +51,7 @@ class Configuration:
 
         if args.dest:
             self.destination_directory = Path(args.dest)
-        elif cfg.get('dsst'):
+        elif cfg.get('dest'):
             self.destination_directory = cfg_dir / cfg['dest']
         else:
             raise ConfigurationError('Destination directory not configured')
