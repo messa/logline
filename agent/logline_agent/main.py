@@ -29,7 +29,7 @@ def agent_main():
     run(async_main(conf))
 
 
-log_format = '%(asctime)s [%(process)d] %(name)s %(levelname)5s: %(message)s'
+log_format = '%(asctime)s [%(process)d] %(name)-20s %(levelname)5s: %(message)s'
 
 own_log_files = set()
 
