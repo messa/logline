@@ -118,7 +118,7 @@ async def follow_file(file_path, file_stream, client_factory):
         try:
             while True:
                 file_stream.seek(0)
-                prefix = file_stream.read(4096)
+                prefix = file_stream.read(50)
                 if len(prefix) < 20:
                     logger.debug('File is too small: %s (fd: %s)', file_path, file_stream.fileno())
                     await sleep(10)
