@@ -23,6 +23,12 @@ class Configuration:
     def __init__(self, args):
         if args.conf:
             cfg_path = Path(args.conf)
+        elif os.environ.get('CONF'):
+            cfg_path = Path(os.environ['CONF'])
+        else:
+            cfg_path = None
+
+        if cfg_path:
             cfg_dir = cfg_path.parent
             import yaml
             cfg = yaml.safe_load(cfg_path.read_text())
