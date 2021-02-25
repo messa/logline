@@ -208,7 +208,7 @@ def test_rotate_log_file(tmp_path):
             assert server_process.poll() is None
             check_call(['find', str(tmp_path)], stdout=2)
             if not expected_dst_file.exists():
-                logger.debug('Still no file in %s', expected_dst_second_file)
+                logger.debug('Still no file in %s', expected_dst_file)
             else:
                 assert expected_dst_file.read_text() == '2021-02-22 17:10:00 First file\n'
                 logger.debug('Destination file created! %s', expected_dst_file)
