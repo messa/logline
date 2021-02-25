@@ -82,7 +82,7 @@ class ClientConnection:
             reply_length = 0
         if reply_length:
             reply_json = await self.reader.readexactly(reply_length)
-            reply = json.loads(reply_json)
+            reply = json.loads(reply_json.decode('utf-8'))
             del reply_json
         else:
             reply = None
