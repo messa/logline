@@ -71,6 +71,7 @@ class Configuration:
         # All these intervals are in seconds (int or float)
         self.tail_read_interval = 1
         self.scan_new_files_interval = 1
+        self.rotated_files_inactivity_threshold = 600
 
 
 def parse_address(s):
