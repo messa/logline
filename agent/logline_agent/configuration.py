@@ -57,7 +57,7 @@ class Configuration:
         else:
             self.tls_cert_file = None
             
-        if not self.tls_cert_file.is_file():
+        if self.tls_cert_file and not self.tls_cert_file.is_file():
             raise ConfigurationError('TLS cert is not a file: {}'.foramt(self.tls_cert_file))
 
         self.use_tls = args.tls \
