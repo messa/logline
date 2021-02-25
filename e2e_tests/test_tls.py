@@ -153,6 +153,8 @@ def test_send_log_file_over_tls(tmp_path):
             if not expected_dst_file.exists():
                 logger.debug('Still no file in %s', expected_dst_file)
             else:
+                sleep(.1)
+                # ^^^ sometimes the file exists, but is still empty, so sleep a little more
                 assert expected_dst_file.read_text() == '2021-02-22 Hello world!\n'
                 logger.debug('Destination file created! %s', expected_dst_file)
                 break
