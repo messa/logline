@@ -115,11 +115,14 @@ async def follow_file(conf, file_path, file_stream, file_inode, get_current_inod
     last_data_read_timestamp = monotime()
     while True:
         try:
+            file_too_small_last_logged_size = None
             while True:
                 file_stream.seek(0)
                 prefix = file_stream.read(conf.prefix_length)
                 if len(prefix) < conf.min_prefix_length:
-                    logger.debug('File is too small (%d bytes): %s (fd: %s)', len(prefix), file_path, file_stream.fileno())
+                    if file_too_small_last_logged_size != len(prefix):
+                        logger.debug('File is too small (%d bytes): %s (fd: %s)', len(prefix), file_path, file_stream.fileno())
+                        file_too_small_last_logged_size = len(prefix)
                     if file_inode != get_current_inode():
                         inactive_for = monotime() - last_data_read_timestamp
                         if inactive_for > conf.rotated_files_inactivity_threshold:
