@@ -51,11 +51,14 @@ class Configuration:
             raise ConfigurationError('No server address configured')
 
         if args.tls_cert:
-            self.tls_cert_file = args.tls_cert
+            self.tls_cert_file = Path(args.tls_cert)
         elif cfg.get('tls', {}).get('cert'):
             self.tls_cert_file = cfg_dir / cfg['tls']['cert']
         else:
             self.tls_cert_file = None
+            
+        if not self.tls_cert_file.is_file():
+            raise ConfigurationError('TLS cert is not a file: {}'.foramt(self.tls_cert_file))
 
         self.use_tls = args.tls \
             or self.tls_cert_file \
