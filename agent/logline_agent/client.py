@@ -16,7 +16,7 @@ async def connect_to_server(conf, log_path, log_prefix):
         logger.debug('Using TLS; cafile: %s', '-' if conf.tls_cert_file is None else conf.tls_cert_file)
         ssl_context = create_default_context(
             purpose=Purpose.SERVER_AUTH,
-            cafile=conf.tls_cert_file)
+            cafile=str(conf.tls_cert_file) if conf.tls_cert_file else None)
     else:
         ssl_context = None
     reader, writer = await open_connection(conf.server_host, conf.server_port, ssl=ssl_context)
