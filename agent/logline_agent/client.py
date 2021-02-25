@@ -62,12 +62,12 @@ class ClientConnection:
         md_bytes += b'\n'
         if data is None:
             logger.debug('Sending: %s %s', command, metadata)
-            self.writer.write(f'{command} {len(md_bytes)}\n'.encode('ascii'))
+            self.writer.write('{} {}\n'.format(command, len(md_bytes)).encode('ascii'))
             self.writer.write(md_bytes)
         else:
             assert isinstance(data, bytes)
             logger.debug('Sending: %s %s + %d B data', command, metadata, len(data))
-            self.writer.write(f'{command} {len(md_bytes)} {len(data)}\n'.encode('ascii'))
+            self.writer.write('{} {} {}\n'.format(command, len(md_bytes), len(data)).encode('ascii'))
             self.writer.write(md_bytes)
             self.writer.write(data)
         await self.writer.drain()
@@ -91,7 +91,7 @@ class ClientConnection:
             return reply
         elif reply_status == 'error':
             logger.warning('Received reply: %s %s', reply_status, '-' if reply is None else repr(reply))
-            raise Exception(f'Error reply: {reply}')
+            raise Exception('Error reply: {}'.format(reply))
         else:
             raise Exception('Protocol error')
 

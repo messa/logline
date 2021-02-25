@@ -1,5 +1,6 @@
 from argparse import ArgumentParser
-from asyncio import run, sleep, create_task
+from asyncio import sleep
+from .asyncio_helpers import run, create_task
 from functools import partial
 from glob import glob
 from logging import getLogger
@@ -130,7 +131,7 @@ async def follow_file(file_path, file_stream, client_factory):
                 file_stream.seek(server_length)
                 if file_stream.tell() != server_length:
                     logger.warning('Failed to seek %s (fd: %s) to %s - got to %s', file_path, file_stream.fileno(), server_length, file_stream.tell())
-                    raise Exception(f"Failed to seek {file_path} to {server_length}")
+                    raise Exception('Failed to seek {} to {}'.format(file_path, server_length))
                 else:
                     logger.debug('Seeked %s (fd: %s) to %s', file_path, file_stream.fileno(), server_length)
                 while True:

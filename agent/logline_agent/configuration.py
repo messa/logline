@@ -72,5 +72,4 @@ def parse_address(s):
     if m:
         port, = m.groups()
         return '', int(port)
-    raise Exception(f'Unknown address format: {s}')
-
+    raise Exception('Unknown address format: {}'.format(s))
