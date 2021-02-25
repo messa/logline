@@ -156,14 +156,3 @@ async def follow_file(conf, file_path, file_stream, client_factory):
             await sleep(10)
             logger.info('Trying again to follow file %s (fd: %r)', file_path, file_stream.fileno())
             continue
-
-
-def read_prefix(f):
-    pos = f.tell()
-    try:
-        f.seek(0)
-        prefix = f.read(128)
-    finally:
-        f.seek(pos)
-    assert f.tell() == pos
-    return prefix
