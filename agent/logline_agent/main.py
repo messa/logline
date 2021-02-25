@@ -71,8 +71,8 @@ async def async_main(conf):
     assert conf.server_port
     client_factory = partial(connect_to_server, conf=conf)
     while True:
-        await scan_for_new_files(conf, watched_paths, new_path_callback=lambda p: create_task(watch_path(p, client_factory)))
-        await sleep(1)
+        await scan_for_new_files(conf, watched_paths, new_path_callback=lambda p: create_task(watch_path(conf, p, client_factory)))
+        await sleep(conf.scan_new_files_interval)
 
 
 async def scan_for_new_files(conf, watched_paths, new_path_callback):
@@ -87,13 +87,13 @@ async def scan_for_new_files(conf, watched_paths, new_path_callback):
                 watched_paths[str(p)] = new_path_callback(p)
 
 
-async def watch_path(file_path, client_factory):
+async def watch_path(conf, file_path, client_factory):
     assert file_path == file_path.resolve()
     last_inode = None
     while True:
         if file_path.stat().st_ino == last_inode:
             # No change, still the same file
-            await sleep(1)
+            await sleep(conf.tail_read_interval)
             continue
         f = file_path.open(mode='rb')
         f_inode = fstat(f.fileno()).st_ino
@@ -106,19 +106,19 @@ async def watch_path(file_path, client_factory):
             logger.info('Detected file: %s (inode: %s fd: %s)', file_path, f_inode, f.fileno())
         else:
             logger.info('File rotated: %s (inode: %s -> %s fd: %s)', file_path, last_inode, f_inode, f.fileno())
-        create_task(follow_file(file_path, f, client_factory))
+        create_task(follow_file(conf, file_path, f, client_factory))
         last_inode = f_inode
 
 
-async def follow_file(file_path, file_stream, client_factory):
+async def follow_file(conf, file_path, file_stream, client_factory):
     while True:
         try:
             while True:
                 file_stream.seek(0)
-                prefix = file_stream.read(50)
-                if len(prefix) < 20:
-                    logger.debug('File is too small: %s (fd: %s)', file_path, file_stream.fileno())
-                    await sleep(10)
+                prefix = file_stream.read(conf.prefix_length)
+                if len(prefix) < conf.min_prefix_length:
+                    logger.debug('File is too small (%d bytes): %s (fd: %s)', len(prefix), file_path, file_stream.fileno())
+                    await sleep(conf.tail_read_interval)
                     continue
                 else:
                     break
@@ -141,7 +141,7 @@ async def follow_file(file_path, file_stream, client_factory):
                     if not chunk:
                         # nothing was read
                         #logger.debug('No new content was read from %s (fd: %s) pos %s', file_path, file_stream.fileno(), pos)
-                        await sleep(1)
+                        await sleep(conf.tail_read_interval)
                         continue
                     logger.debug('Read %d bytes from %s (fd: %s) position %s', len(chunk), file_path, file_stream.fileno(), pos)
                     await client.send_data(pos, chunk)

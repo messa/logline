@@ -56,7 +56,7 @@ class Configuration:
             self.tls_cert_file = cfg_dir / cfg['tls']['cert']
         else:
             self.tls_cert_file = None
-            
+
         if self.tls_cert_file and not self.tls_cert_file.is_file():
             raise ConfigurationError('TLS cert is not a file: {}'.foramt(self.tls_cert_file))
 
@@ -64,6 +64,13 @@ class Configuration:
             or self.tls_cert_file \
             or cfg.get('tls', {}).get('enable') \
             or cfg.get('tls', {}).get('enabled')
+
+        self.prefix_length = 50 # in bytes
+        self.min_prefix_length = 20 # in bytes
+
+        # All these intervals are in seconds (int or float)
+        self.tail_read_interval = 1
+        self.scan_new_files_interval = 1
 
 
 def parse_address(s):
