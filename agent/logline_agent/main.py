@@ -91,11 +91,29 @@ async def scan_for_new_files(conf, watched_paths, new_path_callback):
 async def watch_path(conf, file_path, client_factory):
     assert file_path == file_path.resolve()
     last_inode = None
+    last_stat_log_message = None
     while True:
-        if file_path.stat().st_ino == last_inode:
+        try:
+            current_inode = file_path.stat().st_ino
+        except Exception as e:
+            # Permissions error for example?
+            if last_stat_log_message != repr(e):
+                if isinstance(e, FileNotFoundError):
+                    logger.info('File not found: %s', file_path)
+                else:
+                    logger.info('Could not stat %s: %r', file_path, e)
+                last_stat_log_message = repr(e)
+            await sleep(conf.tail_read_interval)
+            continue
+        else:
+            last_stat_log_message = None
+
+        if current_inode == last_inode:
             # No change, still the same file
             await sleep(conf.tail_read_interval)
             continue
+
+        # File changed, open the new file
         f = file_path.open(mode='rb')
         f_inode = fstat(f.fileno()).st_ino
         if f_inode == last_inode:
@@ -103,10 +121,14 @@ async def watch_path(conf, file_path, client_factory):
             logger.warning('Detected inode change, but opened the same inode as before? %s', file_path)
             f.close()
             continue
+
+        # Log some info
         if last_inode is None:
             logger.info('Detected file: %s (inode: %s fd: %s)', file_path, f_inode, f.fileno())
         else:
             logger.info('File rotated: %s (inode: %s -> %s fd: %s)', file_path, last_inode, f_inode, f.fileno())
+
+        # Run follow_file() for this newly opened file
         last_inode = f_inode
         create_task(follow_file(conf, file_path, f, f_inode, lambda: last_inode, client_factory))
 
