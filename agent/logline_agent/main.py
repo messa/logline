@@ -28,7 +28,7 @@ def agent_main():
     setup_logging(verbose=args.verbose)
     conf = Configuration(args=args)
     setup_log_file(conf.log_file)
-    run(async_main(conf))
+    run(async_main(conf), debug=True)
 
 
 log_format = '%(asctime)s [%(process)d] %(name)-20s %(levelname)5s: %(message)s'
