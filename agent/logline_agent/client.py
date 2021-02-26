@@ -1,19 +1,32 @@
+'''
+Client for the Logline Server
+'''
+
 from asyncio import open_connection
 from logging import getLogger
 from reprlib import repr as smart_repr
 from socket import getfqdn
+from time import monotonic as monotime
 import json
 
 
 logger = getLogger(__name__)
 
 
+class ClientError (Exception):
+    pass
+
+
 async def connect_to_server(conf, log_path, log_prefix):
+    '''
+    Connect to the server specified in the configuration.
+    Initial header is sent to the server, containing some metadata and log file prefix.
+    '''
     assert isinstance(log_prefix, bytes)
     logger.debug('Connecting to %s:%s', conf.server_host, conf.server_port)
     if conf.use_tls:
         from ssl import create_default_context, Purpose
-        logger.debug('Using TLS; cafile: %s', '-' if conf.tls_cert_file is None else conf.tls_cert_file)
+        logger.debug('Using TLS; cafile: %s', conf.tls_cert_file if conf.tls_cert_file else '-')
         ssl_context = create_default_context(
             purpose=Purpose.SERVER_AUTH,
             cafile=str(conf.tls_cert_file) if conf.tls_cert_file else None)
@@ -34,6 +47,9 @@ async def connect_to_server(conf, log_path, log_prefix):
 
 
 class ClientConnection:
+    '''
+    Use connect_to_server() to create instance of this class.
+    '''
 
     def __init__(self, reader, writer):
         self.reader = reader
@@ -60,6 +76,7 @@ class ClientConnection:
         assert isinstance(metadata, dict)
         md_bytes = json.dumps(metadata).encode()
         md_bytes += b'\n'
+        t0 = monotime()
         if data is None:
             logger.debug('Sending: %s %s', command, metadata)
             self.writer.write('{} {}\n'.format(command, len(md_bytes)).encode('ascii'))
@@ -86,14 +103,15 @@ class ClientConnection:
             del reply_json
         else:
             reply = None
+        duration_ms = int((monotime() - t0) * 1000)
         if reply_status == 'ok':
-            logger.debug('Received reply: %s %s', reply_status, '-' if reply is None else repr(reply))
+            logger.debug('Received reply in %d ms: %s %s', duration_ms, reply_status, '-' if reply is None else repr(reply))
             return reply
         elif reply_status == 'error':
-            logger.warning('Received reply: %s %s', reply_status, '-' if reply is None else repr(reply))
-            raise Exception('Error reply: {}'.format(reply))
+            logger.warning('Received reply in %d ms: %s %s', duration_ms, reply_status, '-' if reply is None else repr(reply))
+            raise ClientError('Error reply: {}'.format(reply))
         else:
-            raise Exception('Protocol error')
+            raise ClientError('Protocol error')
 
 
 def sha1_b64(data):
