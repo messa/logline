@@ -2,12 +2,15 @@ from argparse import ArgumentParser
 from asyncio import run, sleep, start_server
 from datetime import datetime
 from functools import partial
+import gzip
 from io import SEEK_END
 import json
 from logging import getLogger
+import lzma
 from reprlib import repr as smart_repr
 
 from .configuration import Configuration
+from .util import to_thread, decompress_zst
 
 
 logger = getLogger(__name__)
@@ -138,7 +141,14 @@ async def handle_client(conf, reader, writer):
             if command != 'data':
                 raise Exception(f"Protocol error - expected 'data', received {smart_repr(command)}")
             assert isinstance(data, bytes)
-            assert metadata['compression'] is None
+            if metadata.get('compression') == 'gzip':
+                data = await to_thread(gzip.decompress, data)
+            elif metadata.get('compression') == 'lzma':
+                data = await to_thread(lzma.decompress, data)
+            elif metadata.get('compression') == 'zst':
+                data = await decompress_zst(data)
+            elif metadata.get('compression') != None:
+                raise Exception(f"Unsupported compression method: {metadata['compression']}")
             assert f.tell() == metadata['offset']
             logger.debug('Writing %d bytes at offset %s to file %s (fd: %s)', len(data), f.tell(), dst_path, f.fileno())
             f.write(data)

@@ -3,11 +3,14 @@ Client for the Logline Server
 '''
 
 from asyncio import open_connection
+import gzip
 from logging import getLogger
 from reprlib import repr as smart_repr
 from socket import getfqdn
 from time import monotonic as monotime
 import json
+
+from .asyncio_helpers import to_thread
 
 
 logger = getLogger(__name__)
@@ -69,6 +72,10 @@ class ClientConnection:
             'offset': offset,
             'compression': None,
         }
+        content_gz = await to_thread(gzip.compress, content)
+        if len(content_gz) < len(content):
+            metadata['compression'] = 'gzip'
+            content = content_gz
         await self._send_command('data', metadata, content)
 
     async def _send_command(self, command, metadata, data=None):
