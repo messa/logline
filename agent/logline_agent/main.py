@@ -28,7 +28,15 @@ def agent_main():
     setup_logging(verbose=args.verbose)
     conf = Configuration(args=args)
     setup_log_file(conf.log_file)
-    run(async_main(conf), debug=True)
+    logger.info('Logline Agent starting')
+    try:
+        run(async_main(conf), debug=True)
+    except Exception as e:
+        logger.exception('Logline Agent failed: %r', e)
+    except BaseException as e:
+        logger.info('Logline Agent stopping: %r', e)
+    else:
+        logger.info('Logline Agent done')
 
 
 log_format = '%(asctime)s [%(process)d] %(name)-20s %(levelname)5s: %(message)s'
@@ -83,16 +91,28 @@ async def scan_for_new_files(conf, watched_paths, new_path_callback):
         paths = glob(glob_str, recursive=True)
         for p in paths:
             p = Path(p).resolve()
-            if str(p) not in watched_paths:
+            p_task = watched_paths.get(str(p))
+            if p_task is None:
                 #logger.debug('Found out new path %s from glob %s', p, glob_str)
                 watched_paths[str(p)] = new_path_callback(p)
+            elif p_task.done():
+                raise Exception(
+                    'Task for path {} is not running; task.exception: {!r}'.format(
+                        p, p_task.exception()))
 
 
 async def watch_path(conf, file_path, client_factory):
     assert file_path == file_path.resolve()
     last_inode = None
     last_stat_log_message = None
+    last_fd = None
+    last_task = None
     while True:
+        if last_task is not None and last_task.done():
+            raise Exception(
+                'Task for following file {} fd {} is not running; task.exception: {!r}'.format(
+                    file_path, last_fd, last_task.exception()))
+
         try:
             current_inode = file_path.stat().st_ino
         except Exception as e:
@@ -130,7 +150,9 @@ async def watch_path(conf, file_path, client_factory):
 
         # Run follow_file() for this newly opened file
         last_inode = f_inode
-        create_task(follow_file(conf, file_path, f, f_inode, lambda: last_inode, client_factory))
+        last_fd = f.fileno()
+        last_task = create_task(follow_file(conf, file_path, f, f_inode, lambda: last_inode, client_factory))
+        del f # opened file f will be closed in the just created task
 
 
 async def follow_file(conf, file_path, file_stream, file_inode, get_current_inode, client_factory):
