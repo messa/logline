@@ -3,6 +3,7 @@ Client for the Logline Server
 '''
 
 from asyncio import open_connection
+from base64 import b64encode
 import gzip
 from logging import getLogger
 from reprlib import repr as smart_repr
@@ -26,6 +27,7 @@ async def connect_to_server(conf, log_path, log_prefix):
     Initial header is sent to the server, containing some metadata and log file prefix.
     '''
     assert isinstance(log_prefix, bytes)
+    assert isinstance(conf.client_token, str)
     logger.debug('Connecting to %s:%s', conf.server_host, conf.server_port)
     if conf.use_tls:
         from ssl import create_default_context, Purpose
@@ -43,6 +45,9 @@ async def connect_to_server(conf, log_path, log_prefix):
         'prefix': {
             'length': len(log_prefix),
             'sha1': sha1_b64(log_prefix),
+        },
+        'auth': {
+            'client_token': conf.client_token,
         },
     })
     assert cc.header_reply
@@ -123,7 +128,7 @@ class ClientConnection:
 
 def sha1_b64(data):
     import hashlib
-    from base64 import b64encode
+    assert isinstance(data, bytes)
     return b64encode(hashlib.sha1(data).digest()).decode('ascii')
 
 

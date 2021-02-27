@@ -24,6 +24,7 @@ def agent_main():
     p.add_argument('--server')
     p.add_argument('--tls', action='store_true')
     p.add_argument('--tls-cert', help='path to the file with certificate in PEM format')
+    p.add_argument('--token-file', help='path to the file containing client token')
     args = p.parse_args()
     setup_logging(verbose=args.verbose)
     conf = Configuration(args=args)

@@ -1,4 +1,5 @@
 from logging import getLogger
+import os
 from pathlib import Path
 import re
 
@@ -64,6 +65,17 @@ class Configuration:
             or self.tls_cert_file \
             or cfg.get('tls', {}).get('enable') \
             or cfg.get('tls', {}).get('enabled')
+
+        if args.token_file:
+            self.client_token = Path(args.token_file).read_text().strip()
+        elif os.environ.get('CLIENT_TOKEN'):
+            self.client_token = os.environ['CLIENT_TOKEN']
+        elif cfg.get('client_token'):
+            self.client_token = cfg['client_token']
+        elif cfg.get('client_token_file'):
+            self.client_token = (cfg_dir / cfg['client_token_file']).read_text().strip()
+        else:
+            raise ConfigurationError('Client token is not configured')
 
         self.prefix_length = 50 # in bytes
         self.min_prefix_length = 20 # in bytes

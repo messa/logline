@@ -1,4 +1,5 @@
 from contextlib import ExitStack
+import hashlib
 from logging import getLogger
 import os
 from os import chdir
@@ -12,6 +13,10 @@ from time import monotonic as monotime
 
 
 logger = getLogger(__name__)
+
+
+client_token = 'topsecret'
+client_token_hash = hashlib.sha1(client_token.encode()).hexdigest()
 
 
 def test_run_agent_help():
@@ -40,11 +45,12 @@ def test_existing_log_file_gets_copied(tmp_path):
             'logline-server',
             '--bind', f'127.0.0.1:{port}',
             '--dest', 'server-dst',
+            '--client-token-hash', client_token_hash,
         ]
         server_process = stack.enter_context(Popen(server_cmd))
         stack.callback(terminate_process, server_process)
         sleep(.1)
-        agent_process = stack.enter_context(Popen(agent_cmd))
+        agent_process = stack.enter_context(Popen(agent_cmd, env={**os.environ, 'CLIENT_TOKEN': client_token}))
         stack.callback(terminate_process, agent_process)
         t0 = monotime()
         sleep(.1)
@@ -84,11 +90,12 @@ def test_log_file_update_gets_copied(tmp_path):
             'logline-server',
             '--bind', f'127.0.0.1:{port}',
             '--dest', 'server-dst',
+            '--client-token-hash', client_token_hash,
         ]
         server_process = stack.enter_context(Popen(server_cmd))
         stack.callback(terminate_process, server_process)
         sleep(.1)
-        agent_process = stack.enter_context(Popen(agent_cmd))
+        agent_process = stack.enter_context(Popen(agent_cmd, env={**os.environ, 'CLIENT_TOKEN': client_token}))
         stack.callback(terminate_process, agent_process)
         t0 = monotime()
         sleep(.1)
@@ -151,11 +158,12 @@ def test_new_log_file_gets_copied(tmp_path):
             'logline-server',
             '--bind', f'127.0.0.1:{port}',
             '--dest', 'server-dst',
+            '--client-token-hash', client_token_hash,
         ]
         server_process = stack.enter_context(Popen(server_cmd))
         stack.callback(terminate_process, server_process)
         sleep(.1)
-        agent_process = stack.enter_context(Popen(agent_cmd))
+        agent_process = stack.enter_context(Popen(agent_cmd, env={**os.environ, 'CLIENT_TOKEN': client_token}))
         stack.callback(terminate_process, agent_process)
         sleep(1)
         assert agent_process.poll() is None
@@ -198,11 +206,12 @@ def test_rotate_log_file(tmp_path):
             'logline-server',
             '--bind', f'127.0.0.1:{port}',
             '--dest', 'server-dst',
+            '--client-token-hash', client_token_hash,
         ]
         server_process = stack.enter_context(Popen(server_cmd))
         stack.callback(terminate_process, server_process)
         sleep(.1)
-        agent_process = stack.enter_context(Popen(agent_cmd))
+        agent_process = stack.enter_context(Popen(agent_cmd, env={**os.environ, 'CLIENT_TOKEN': client_token}))
         stack.callback(terminate_process, agent_process)
         sleep(.1)
         t0 = monotime()

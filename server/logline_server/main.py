@@ -1,8 +1,10 @@
 from argparse import ArgumentParser
 from asyncio import run, sleep, start_server
+from base64 import b64encode
 from datetime import datetime
 from functools import partial
 import gzip
+import hashlib
 from io import SEEK_END
 import json
 from logging import getLogger
@@ -26,6 +28,7 @@ def server_main():
     p.add_argument('--tls-cert', help='path to the file with certificate in PEM format')
     p.add_argument('--tls-key', help='path to the file with key in PEM format')
     p.add_argument('--tls-key-password-file', help='path to the file with key password in plaintext')
+    p.add_argument('--client-token-hash', action='append')
     args = p.parse_args()
     setup_logging(verbose=args.verbose)
     conf = Configuration(args=args)
@@ -97,6 +100,9 @@ async def handle_client(conf, reader, writer):
         assert header['hostname']
         assert header['path']
         assert header['prefix']
+        assert header['auth']
+
+        check_client_auth(conf, header.get('auth'))
 
         *dir_parts, filename = header['path'].strip('/').split('/')
         dst_path = conf.destination_directory / header['hostname'] / '~'.join(dir_parts) / filename
@@ -170,6 +176,18 @@ class ConnectionClosed (Exception):
     pass
 
 
+def check_client_auth(conf, header_auth):
+    if not header_auth:
+        raise Exception('No auth info received in header')
+    if header_auth.get('client_token'):
+        ct_bytes = header_auth['client_token'].encode('utf-8')
+        if sha1_hex(ct_bytes) in conf.client_token_hashes:
+            logger.debug('Client token verified with SHA1 hash %s', sha1_hex(ct_bytes))
+            return
+        raise Exception(f'Unknown client token; hash: {sha1_hex(ct_bytes)}')
+    raise Exception(f'Client token was not received in header')
+
+
 async def recv_command(reader):
     line = await reader.readline()
     if not line:
@@ -217,9 +235,14 @@ async def send_reply(writer, status, payload):
 
 
 def sha1_b64(data):
-    import hashlib
-    from base64 import b64encode
     return b64encode(hashlib.sha1(data).digest()).decode('ascii')
 
 
 assert sha1_b64(b'hello') == 'qvTGHdzF6KLavt4PO0gs2a6pQ00='
+
+
+def sha1_hex(data):
+    return hashlib.sha1(data).hexdigest()
+
+
+assert sha1_hex(b'hello') == 'aaf4c61ddcc5e8a2dabede0f3b482cd9aea9434d'

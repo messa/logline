@@ -81,6 +81,15 @@ class Configuration:
 
         self.use_tls = bool(self.tls_cert_file)
 
+        self.client_token_hashes = set()
+        if args.client_token_hash:
+            self.client_token_hashes.update(args.client_token_hash)
+        if cfg.get('client_token_hashes'):
+            assert isinstance(cfg['client_token_hashes'], list)
+            self.client_token_hashes.update(cfg['client_token_hashes'])
+        if not self.client_token_hashes:
+            raise ConfigurationError('No client token hashes configured')
+
 
 def parse_address(s):
     m = re.match(r'^([^:]+):([0-9]+)$', s)

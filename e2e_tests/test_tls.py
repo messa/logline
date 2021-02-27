@@ -1,4 +1,5 @@
 from contextlib import ExitStack
+import hashlib
 from logging import getLogger
 import os
 from os import chdir
@@ -13,6 +14,10 @@ from time import monotonic as monotime
 
 
 logger = getLogger(__name__)
+
+
+client_token = 'topsecret'
+client_token_hash = hashlib.sha1(client_token.encode()).hexdigest()
 
 
 selfsigned_cert_pem = dedent('''\
@@ -137,11 +142,12 @@ def test_send_log_file_over_tls(tmp_path):
             '--dest', 'server-dst',
             '--tls-cert', 'cert.pem',
             '--tls-key', 'key.pem',
+            '--client-token-hash', client_token_hash,
         ]
         server_process = stack.enter_context(Popen(server_cmd, env={**os.environ, 'TLS_KEY_PASSWORD': selfsigned_key_password}))
         stack.callback(terminate_process, server_process)
         sleep(.1)
-        agent_process = stack.enter_context(Popen(agent_cmd))
+        agent_process = stack.enter_context(Popen(agent_cmd, env={**os.environ, 'CLIENT_TOKEN': client_token}))
         stack.callback(terminate_process, agent_process)
         t0 = monotime()
         sleep(.1)
