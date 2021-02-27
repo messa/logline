@@ -6,6 +6,7 @@ from asyncio import open_connection
 from base64 import b64encode
 import gzip
 from logging import getLogger
+import re
 from reprlib import repr as smart_repr
 from socket import getfqdn
 from time import monotonic as monotime
@@ -86,16 +87,18 @@ class ClientConnection:
     async def _send_command(self, command, metadata, data=None):
         assert isinstance(command, str)
         assert isinstance(metadata, dict)
-        md_bytes = json.dumps(metadata).encode()
+        md_json = json.dumps(metadata)
+        md_json_safe = obfuscate_secrets(md_json)
+        md_bytes = md_json.encode()
         md_bytes += b'\n'
         t0 = monotime()
         if data is None:
-            logger.debug('Sending: %s %s', command, metadata)
+            logger.debug('Sending: %s %s', command, md_json_safe)
             self.writer.write('{} {}\n'.format(command, len(md_bytes)).encode('ascii'))
             self.writer.write(md_bytes)
         else:
             assert isinstance(data, bytes)
-            logger.debug('Sending: %s %s + %d B data', command, metadata, len(data))
+            logger.debug('Sending: %s %s + %d B data', command, md_json_safe, len(data))
             self.writer.write('{} {} {}\n'.format(command, len(md_bytes), len(data)).encode('ascii'))
             self.writer.write(md_bytes)
             self.writer.write(data)
@@ -133,3 +136,12 @@ def sha1_b64(data):
 
 
 assert sha1_b64(b'hello') == 'qvTGHdzF6KLavt4PO0gs2a6pQ00='
+
+
+def obfuscate_secrets(json_str):
+    assert isinstance(json_str, str)
+    json_str = re.sub(r'("client_token":\s+"[^"]{2})([^"]+)([^"]{2}")', r'\1...\3', json_str, re.ASCII)
+    return json_str
+
+
+assert obfuscate_secrets('{"auth": {"client_token": "topsecret"}}') == '{"auth": {"client_token": "to...et"}}'
