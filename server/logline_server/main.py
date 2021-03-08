@@ -93,7 +93,12 @@ async def handle_client(conf, reader, writer):
     try:
         addr = writer.get_extra_info('peername')
         logger.info('New client has connected: %s', addr)
-        command, metadata, data = await recv_command(reader)
+        try:
+            command, metadata, data = await recv_command(reader, first=True)
+        except ReceivedHTTPRequestError as e:
+            logger.info('Received like HTTP request')
+            await send_http_response(writer)
+            return
         if command != 'logline-agent-v1' or data:
             raise Exception(f"Protocol error - received {smart_repr(command)} as first command")
         header = metadata
@@ -172,8 +177,12 @@ async def handle_client(conf, reader, writer):
             f.close()
 
 
-class ConnectionClosed (Exception):
-    pass
+async def send_http_response(writer):
+    writer.write(b'HTTP/1.0 404 Not Found\r\n')
+    writer.write(b'Content-Type: text/plain\r\n')
+    writer.write(b'\r\n')
+    writer.write(b'This is not a HTTP service.\n')
+    await writer.drain()
 
 
 def check_client_auth(conf, header_auth):
@@ -188,31 +197,45 @@ def check_client_auth(conf, header_auth):
     raise Exception(f'Client token was not received in header')
 
 
-async def recv_command(reader):
+class ConnectionClosed (Exception):
+    pass
+
+
+class ProtocolError (Exception):
+    pass
+
+
+class ReceivedHTTPRequestError (ProtocolError):
+    pass
+
+
+async def recv_command(reader, first=False):
     line = await reader.readline()
     if not line:
         raise ConnectionClosed()
+    if first and b'HTTP/' in line:
+        raise ReceivedHTTPRequestError(f'Invalid command line format: {smart_repr(line)}')
     try:
         parts = line.decode('ascii').split()
     except UnicodeDecodeError:
-        raise Exception(f"Failed to parse command line: {smart_repr(line)}")
+        raise ProtocolError(f"Failed to parse command line: {smart_repr(line)}")
     if len(parts) == 1:
         command, = parts
         return command, None, None
     if len(parts) == 2:
         command, metadata_size = parts
         if not metadata_size.isdigit():
-            raise Exception(f"Failed to parse command line: {smart_repr(line)}")
+            raise ProtocolError(f"Failed to parse command line: {smart_repr(line)}")
         metadata_size = int(metadata_size)
         data_size = None
     elif len(parts) == 3:
         command, metadata_size, data_size = parts
         if not metadata_size.isdigit() or not data_size.isdigit():
-            raise Exception(f"Failed to parse command line: {smart_repr(line)}")
+            raise ProtocolError(f"Failed to parse command line: {smart_repr(line)}")
         metadata_size = int(metadata_size)
         data_size = int(data_size)
     else:
-        raise Exception(f"Failed to parse command line: {smart_repr(line)}")
+        raise ProtocolError(f"Failed to parse command line: {smart_repr(line)}")
     metadata_bytes = await reader.readexactly(metadata_size)
     metadata = json.loads(metadata_bytes)
     if data_size is None:
