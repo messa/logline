@@ -192,16 +192,23 @@ async def recv_command(reader):
     line = await reader.readline()
     if not line:
         raise ConnectionClosed()
-    parts = line.decode('ascii').split()
+    try:
+        parts = line.decode('ascii').split()
+    except UnicodeDecodeError:
+        raise Exception(f"Failed to parse command line: {smart_repr(line)}")
     if len(parts) == 1:
         command, = parts
         return command, None, None
     if len(parts) == 2:
         command, metadata_size = parts
+        if not metadata_size.isdigit():
+            raise Exception(f"Failed to parse command line: {smart_repr(line)}")
         metadata_size = int(metadata_size)
         data_size = None
     elif len(parts) == 3:
         command, metadata_size, data_size = parts
+        if not metadata_size.isdigit() or not data_size.isdigit():
+            raise Exception(f"Failed to parse command line: {smart_repr(line)}")
         metadata_size = int(metadata_size)
         data_size = int(data_size)
     else:
