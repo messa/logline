@@ -2,7 +2,7 @@
 Client for the Logline Server
 '''
 
-from asyncio import open_connection
+from asyncio import open_connection, wait_for
 from base64 import b64encode
 import gzip
 from logging import getLogger
@@ -16,6 +16,8 @@ from .asyncio_helpers import to_thread
 
 
 logger = getLogger(__name__)
+
+socket_timeout = 300
 
 
 class ClientError (Exception):
@@ -102,8 +104,8 @@ class ClientConnection:
             self.writer.write('{} {} {}\n'.format(command, len(md_bytes), len(data)).encode('ascii'))
             self.writer.write(md_bytes)
             self.writer.write(data)
-        await self.writer.drain()
-        reply_line = await self.reader.readline()
+        await wait_for(self.writer.drain(), timeout=socket_timeout)
+        reply_line = await wait_for(self.reader.readline(), timeout=socket_timeout)
         #logger.debug('Received reply line %r', reply_line)
         reply_line_parts = reply_line.decode('ascii').split()
         if len(reply_line_parts) == 2:
@@ -113,7 +115,7 @@ class ClientConnection:
             reply_status, = reply_line_parts
             reply_length = 0
         if reply_length:
-            reply_json = await self.reader.readexactly(reply_length)
+            reply_json = await wait_for(self.reader.readexactly(reply_length), timeout=socket_timeout)
             reply = json.loads(reply_json.decode('utf-8'))
             del reply_json
         else:
