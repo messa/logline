@@ -34,7 +34,7 @@ async def connect_to_server(conf, log_path, log_prefix):
     logger.debug('Connecting to %s:%s', conf.server_host, conf.server_port)
     if conf.use_tls:
         from ssl import create_default_context, Purpose
-        logger.debug('Using TLS; cafile: %s', conf.tls_cert_file if conf.tls_cert_file else '-')
+        logger.debug('Using TLS; cafile: %s', conf.tls_cert_file or '-')
         ssl_context = create_default_context(
             purpose=Purpose.SERVER_AUTH,
             cafile=str(conf.tls_cert_file) if conf.tls_cert_file else None)
