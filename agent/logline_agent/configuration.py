@@ -44,6 +44,12 @@ class Configuration:
         if not self.scan_globs:
             raise ConfigurationError('No log sources were configured')
 
+        self.exclude_globs = []
+        if cfg.get('exclude'):
+            assert isinstance(cfg['exclude'], list)
+            self.exclude_globs.extend(cfg['exclude'])
+        logger.debug('exclude_globs: %r', self.exclude_globs)
+
         if args.server:
             self.server_host, self.server_port = parse_address(args.server)
         elif cfg.get('server'):

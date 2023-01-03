@@ -98,11 +98,14 @@ async def async_main(conf):
 
 
 def iter_files(conf):
+    paths = set()
     for glob_str in conf.scan_globs:
-        paths = glob(glob_str, recursive=True)
-        for p in paths:
-            p = Path(p).resolve()
-            yield p
+        for p in glob(glob_str, recursive=True):
+            paths.add(Path(p).resolve())
+    for glob_str in conf.exclude_globs:
+        for p in glob(glob_str, recursive=True):
+            paths.discard(Path(p).resolve())
+    return sorted(paths)
 
 
 async def watch_path(conf, file_path, client_factory):

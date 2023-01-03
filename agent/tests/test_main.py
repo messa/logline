@@ -20,8 +20,12 @@ def test_iter_files(temp_dir, load_conf):
         client_token: topsecret
         scan:
           - {temp_dir}/*/*.log
+        exclude:
+          - {temp_dir}/excluded/not_this.log
     ''')
     assert list(iter_files(conf)) == []
     (temp_dir / 'log').mkdir()
     (temp_dir / 'log' / 'example.log').write_text('Hello World!\n')
+    (temp_dir / 'excluded').mkdir()
+    (temp_dir / 'excluded' / 'not_this.log').write_text('This file should be excluded\n')
     assert list(iter_files(conf)) == [(temp_dir / 'log' / 'example.log')]
