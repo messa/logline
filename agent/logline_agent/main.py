@@ -15,7 +15,7 @@ from .client import connect_to_server
 logger = getLogger(__name__)
 
 
-def agent_main():
+def get_argument_parser():
     p = ArgumentParser()
     p.add_argument('--conf', help='path to configuration file')
     p.add_argument('--log', help='path to log file')
@@ -25,7 +25,11 @@ def agent_main():
     p.add_argument('--tls', action='store_true')
     p.add_argument('--tls-cert', help='path to the file with certificate in PEM format')
     p.add_argument('--token-file', help='path to the file containing client token')
-    args = p.parse_args()
+    return p
+
+
+def agent_main():
+    args = get_argument_parser().parse_args()
     setup_logging(verbose=args.verbose)
     conf = Configuration(args=args)
     setup_log_file(conf.log_file)
@@ -81,25 +85,24 @@ async def async_main(conf):
     assert conf.server_port
     client_factory = partial(connect_to_server, conf=conf)
     while True:
-        await scan_for_new_files(conf, watched_paths, new_path_callback=lambda p: create_task(watch_path(conf, p, client_factory)))
+        for p in iter_files(conf):
+            p_task = watched_paths.get(str(p))
+            if p_task and p_task.done():
+                logger.warning('Task for path %s is not running; task.exception: %r', p, p_task.exception())
+                p_task = None
+            if p_task is None:
+                #logger.debug('Found out new path %s from glob %s', p, glob_str)
+                watched_paths[str(p)] = create_task(watch_path(conf, p, client_factory))
+
         await sleep(conf.scan_new_files_interval)
 
 
-async def scan_for_new_files(conf, watched_paths, new_path_callback):
-    #logger.debug('Scanning...')
+def iter_files(conf):
     for glob_str in conf.scan_globs:
-        #logger.debug('Scanning glob %s', glob_str)
         paths = glob(glob_str, recursive=True)
         for p in paths:
             p = Path(p).resolve()
-            p_task = watched_paths.get(str(p))
-            if p_task is None:
-                #logger.debug('Found out new path %s from glob %s', p, glob_str)
-                watched_paths[str(p)] = new_path_callback(p)
-            elif p_task.done():
-                raise Exception(
-                    'Task for path {} is not running; task.exception: {!r}'.format(
-                        p, p_task.exception()))
+            yield p
 
 
 async def watch_path(conf, file_path, client_factory):
