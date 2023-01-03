@@ -101,6 +101,8 @@ def iter_files(conf):
     paths = set()
     for glob_str in conf.scan_globs:
         for p in glob(glob_str, recursive=True):
+            if any((Path(p).parent / filename).exists() for filename in conf.exclude_if_file_present):
+                continue
             paths.add(Path(p).resolve())
     for glob_str in conf.exclude_globs:
         for p in glob(glob_str, recursive=True):

@@ -50,6 +50,12 @@ class Configuration:
             self.exclude_globs.extend(cfg['exclude'])
         logger.debug('exclude_globs: %r', self.exclude_globs)
 
+        self.exclude_if_file_present = []
+        if cfg.get('exclude_if_file_present'):
+            assert isinstance(cfg['exclude_if_file_present'], list)
+            self.exclude_if_file_present.extend(cfg['exclude_if_file_present'])
+        logger.debug('exclude_if_file_present: %r', self.exclude_if_file_present)
+
         if args.server:
             self.server_host, self.server_port = parse_address(args.server)
         elif cfg.get('server'):

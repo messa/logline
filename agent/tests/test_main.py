@@ -22,10 +22,15 @@ def test_iter_files(temp_dir, load_conf):
           - {temp_dir}/*/*.log
         exclude:
           - {temp_dir}/excluded/not_this.log
+        exclude_if_file_present:
+          - skip
     ''')
     assert list(iter_files(conf)) == []
     (temp_dir / 'log').mkdir()
     (temp_dir / 'log' / 'example.log').write_text('Hello World!\n')
     (temp_dir / 'excluded').mkdir()
     (temp_dir / 'excluded' / 'not_this.log').write_text('This file should be excluded\n')
+    (temp_dir / 'file-excluded').mkdir()
+    (temp_dir / 'file-excluded' / 'skip').write_text('')
+    (temp_dir / 'file-excluded' / 'not_this.log').write_text('This file should be also excluded\n')
     assert list(iter_files(conf)) == [(temp_dir / 'log' / 'example.log')]
