@@ -17,8 +17,7 @@ def test_path_without_directory(tmp_path):
 
 def test_resulting_path_stays_inside_destination(tmp_path):
     dst = build_destination_path(tmp_path, 'host.example.com', '/var/log/app.log')
-    base = tmp_path.resolve()
-    assert base == dst.parent.parent.parent or base in dst.parents
+    assert tmp_path.resolve() in dst.parents
 
 
 def test_hostname_traversal_is_rejected(tmp_path):
