@@ -9,7 +9,9 @@ from io import SEEK_END
 import json
 from logging import getLogger
 import lzma
+from pathlib import Path
 from reprlib import repr as smart_repr
+from typing import Optional
 
 from .configuration import Configuration
 from .util import to_thread, decompress_zst
@@ -52,7 +54,7 @@ def setup_logging(verbose: bool) -> None:
     stderr_log_handler = h
 
 
-def setup_log_file(log_file_path) -> None:
+def setup_log_file(log_file_path: Optional[Path]) -> None:
     from logging import DEBUG, INFO, ERROR, getLogger, Formatter
     from logging.handlers import WatchedFileHandler
     if not log_file_path:

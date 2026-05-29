@@ -6,6 +6,7 @@ from logging import getLogger
 from os import fstat
 from pathlib import Path
 from time import monotonic as monotime
+from typing import Optional
 
 from .asyncio_helpers import run, create_task
 from .configuration import Configuration
@@ -62,7 +63,7 @@ def setup_logging(verbose: bool) -> None:
     stderr_log_handler = h
 
 
-def setup_log_file(log_file_path) -> None:
+def setup_log_file(log_file_path: Optional[Path]) -> None:
     from logging import DEBUG, INFO, ERROR, getLogger, Formatter
     from logging.handlers import WatchedFileHandler
     if not log_file_path:
