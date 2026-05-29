@@ -1,0 +1,25 @@
+[project]
+name = "logline"
+version = "0.0.1"
+description = "Live synchronization of log files from multiple computers to a single place"
+readme = "README.md"
+requires-python = ">=3.9"
+license = "MIT"
+
+[tool.uv]
+package = false
+
+[tool.uv.workspace]
+members = ["agent", "server"]
+
+[tool.uv.sources]
+logline-agent = { workspace = true }
+logline-server = { workspace = true }
+
+[dependency-groups]
+dev = [
+    "logline-agent",
+    "logline-server",
+    "pytest",
+    "pyyaml",
+]

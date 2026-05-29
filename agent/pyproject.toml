@@ -1,6 +1,27 @@
-[build-system]
-requires = [
-    "setuptools>=42",
-    "wheel"
+[project]
+name = "logline-agent"
+version = "0.0.1"
+description = "Logline Agent"
+readme = "README.md"
+requires-python = ">=3.9"
+license = "MIT"
+classifiers = [
+    "Programming Language :: Python :: 3",
+    "Operating System :: OS Independent",
 ]
+dependencies = [
+    "pyyaml",
+]
+
+[project.urls]
+Homepage = "https://github.com/messa/logline"
+
+[project.scripts]
+logline-agent = "logline_agent:agent_main"
+
+[build-system]
+requires = ["setuptools>=61"]
 build-backend = "setuptools.build_meta"
+
+[tool.setuptools.packages.find]
+include = ["logline_agent*"]

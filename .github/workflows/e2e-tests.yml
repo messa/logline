@@ -20,20 +20,11 @@ jobs:
 
     steps:
     - uses: actions/checkout@v4
+    - name: Install uv
+      uses: astral-sh/setup-uv@v5
     - name: Set up Python ${{ matrix.python-version }}
-      uses: actions/setup-python@v5
-      with:
-        python-version: ${{ matrix.python-version }}
+      run: uv python install ${{ matrix.python-version }}
     - name: Install dependencies
-      run: |
-        python -m pip install --upgrade pip wheel
-        python -m pip install pytest
-    - name: Install Logline Agent
-      run: |
-        python -m pip install ./agent
-    - name: Install Logline Server
-      run: |
-        python -m pip install ./server
+      run: uv sync --python ${{ matrix.python-version }}
     - name: Test with pytest
-      run: |
-        pytest -v --tb=native -p no:logging e2e_tests
+      run: uv run pytest -v --tb=native -p no:logging e2e_tests
