@@ -67,13 +67,13 @@ class ClientConnection:
         self.writer = writer
         self.header_reply = None
 
-    def close(self):
+    def close(self) -> None:
         self.writer.close()
 
-    async def send_header(self, header):
+    async def send_header(self, header: dict) -> None:
         self.header_reply = await self._send_command('logline-agent-v1', header)
 
-    async def send_data(self, offset, content):
+    async def send_data(self, offset: int, content: bytes) -> None:
         assert isinstance(offset, int)
         assert isinstance(content, bytes)
         metadata = {
@@ -131,7 +131,7 @@ class ClientConnection:
             raise ClientError('Protocol error')
 
 
-def sha1_b64(data):
+def sha1_b64(data: bytes) -> str:
     import hashlib
     assert isinstance(data, bytes)
     return b64encode(hashlib.sha1(data).digest()).decode('ascii')
@@ -140,7 +140,7 @@ def sha1_b64(data):
 assert sha1_b64(b'hello') == 'qvTGHdzF6KLavt4PO0gs2a6pQ00='
 
 
-def obfuscate_secrets(json_str):
+def obfuscate_secrets(json_str: str) -> str:
     assert isinstance(json_str, str)
     json_str = re.sub(r'("client_token":\s+"[^"]{2})([^"]+)([^"]{2}")', r'\1...\3', json_str, re.ASCII)
     return json_str

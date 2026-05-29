@@ -9,7 +9,9 @@ from io import SEEK_END
 import json
 from logging import getLogger
 import lzma
+from pathlib import Path
 from reprlib import repr as smart_repr
+from typing import Optional
 
 from .configuration import Configuration
 from .util import to_thread, decompress_zst
@@ -18,7 +20,7 @@ from .util import to_thread, decompress_zst
 logger = getLogger(__name__)
 
 
-def server_main():
+def server_main() -> None:
     p = ArgumentParser()
     p.add_argument('--conf', help='path to configuration file')
     p.add_argument('--log', help='path to log file')
@@ -41,7 +43,7 @@ log_format = '%(asctime)s [%(process)d] %(name)s %(levelname)5s: %(message)s'
 stderr_log_handler = None
 
 
-def setup_logging(verbose):
+def setup_logging(verbose: bool) -> None:
     global stderr_log_handler
     from logging import DEBUG, INFO, getLogger, Formatter, StreamHandler
     h = StreamHandler()
@@ -52,7 +54,7 @@ def setup_logging(verbose):
     stderr_log_handler = h
 
 
-def setup_log_file(log_file_path):
+def setup_log_file(log_file_path: Optional[Path]) -> None:
     from logging import DEBUG, INFO, ERROR, getLogger, Formatter
     from logging.handlers import WatchedFileHandler
     if not log_file_path:
@@ -310,14 +312,14 @@ async def send_reply(writer, status, payload):
     await writer.drain()
 
 
-def sha1_b64(data):
+def sha1_b64(data: bytes) -> str:
     return b64encode(hashlib.sha1(data).digest()).decode('ascii')
 
 
 assert sha1_b64(b'hello') == 'qvTGHdzF6KLavt4PO0gs2a6pQ00='
 
 
-def sha1_hex(data):
+def sha1_hex(data: bytes) -> str:
     return hashlib.sha1(data).hexdigest()
 
 
