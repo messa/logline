@@ -47,7 +47,7 @@ async def connect_to_server(conf, log_path, log_prefix):
         'path': str(log_path),
         'prefix': {
             'length': len(log_prefix),
-            'sha1': sha1_b64(log_prefix),
+            'sha256': sha256_b64(log_prefix),
         },
         'auth': {
             'client_token': conf.client_token,
@@ -131,13 +131,13 @@ class ClientConnection:
             raise ClientError('Protocol error')
 
 
-def sha1_b64(data):
+def sha256_b64(data):
     import hashlib
     assert isinstance(data, bytes)
-    return b64encode(hashlib.sha1(data).digest()).decode('ascii')
+    return b64encode(hashlib.sha256(data).digest()).decode('ascii')
 
 
-assert sha1_b64(b'hello') == 'qvTGHdzF6KLavt4PO0gs2a6pQ00='
+assert sha256_b64(b'hello') == 'LPJNul+wow4m6DsqxbninhsWHlwfp0JecwQzYpOLmCQ='
 
 
 def obfuscate_secrets(json_str):

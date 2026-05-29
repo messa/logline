@@ -126,7 +126,7 @@ async def handle_client(conf, reader, writer):
         else:
             assert f.tell() == 0
             f_prefix = f.read(header['prefix']['length'])
-            if f_prefix and sha1_b64(f_prefix) == header['prefix']['sha1']:
+            if f_prefix and verify_prefix(f_prefix, header['prefix']):
                 # it's the correct file :)
                 logger.info('File has the correct prefix: %s', dst_path)
             else:
@@ -236,10 +236,15 @@ def check_client_auth(conf, header_auth):
         raise Exception('No auth info received in header')
     if header_auth.get('client_token'):
         ct_bytes = header_auth['client_token'].encode('utf-8')
-        if sha1_hex(ct_bytes) in conf.client_token_hashes:
-            logger.debug('Client token verified with SHA1 hash %s', sha1_hex(ct_bytes))
+        # Prefer the modern SHA-256 hash, but still accept SHA-1 hashes so that
+        # token hashes configured for older deployments keep working.
+        if sha256_hex(ct_bytes) in conf.client_token_hashes:
+            logger.debug('Client token verified with SHA-256 hash %s', sha256_hex(ct_bytes))
             return
-        raise Exception(f'Unknown client token; hash: {sha1_hex(ct_bytes)}')
+        if sha1_hex(ct_bytes) in conf.client_token_hashes:
+            logger.debug('Client token verified with SHA-1 hash %s', sha1_hex(ct_bytes))
+            return
+        raise Exception(f'Unknown client token; hash: {sha256_hex(ct_bytes)}')
     raise Exception(f'Client token was not received in header')
 
 
@@ -308,6 +313,33 @@ async def send_reply(writer, status, payload):
         writer.write(payload_bytes)
         logger.debug('Sent reply %s %r', status, payload)
     await writer.drain()
+
+
+def verify_prefix(data, prefix):
+    '''
+    Check whether the locally stored file prefix matches the prefix hash sent by
+    the agent. Prefer the modern SHA-256 hash, but fall back to SHA-1 so that
+    older agents keep working against a newer server.
+    '''
+    if prefix.get('sha256') is not None:
+        return sha256_b64(data) == prefix['sha256']
+    if prefix.get('sha1') is not None:
+        return sha1_b64(data) == prefix['sha1']
+    return False
+
+
+def sha256_b64(data):
+    return b64encode(hashlib.sha256(data).digest()).decode('ascii')
+
+
+assert sha256_b64(b'hello') == 'LPJNul+wow4m6DsqxbninhsWHlwfp0JecwQzYpOLmCQ='
+
+
+def sha256_hex(data):
+    return hashlib.sha256(data).hexdigest()
+
+
+assert sha256_hex(b'hello') == '2cf24dba5fb0a30e26e83b2ac5b9e29e1b161e5c1fa7425e73043362938b9824'
 
 
 def sha1_b64(data):
