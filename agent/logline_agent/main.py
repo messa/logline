@@ -28,7 +28,7 @@ def get_argument_parser():
     return p
 
 
-def agent_main():
+def agent_main() -> None:
     args = get_argument_parser().parse_args()
     setup_logging(verbose=args.verbose)
     conf = Configuration(args=args)
@@ -51,7 +51,7 @@ own_log_files = set()
 stderr_log_handler = None
 
 
-def setup_logging(verbose):
+def setup_logging(verbose: bool) -> None:
     global stderr_log_handler
     from logging import DEBUG, INFO, getLogger, Formatter, StreamHandler
     h = StreamHandler()
@@ -62,7 +62,7 @@ def setup_logging(verbose):
     stderr_log_handler = h
 
 
-def setup_log_file(log_file_path):
+def setup_log_file(log_file_path) -> None:
     from logging import DEBUG, INFO, ERROR, getLogger, Formatter
     from logging.handlers import WatchedFileHandler
     if not log_file_path:

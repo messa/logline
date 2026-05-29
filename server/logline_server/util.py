@@ -12,7 +12,7 @@ except ImportError:
         return await loop.run_in_executor(None, partial(func, *args, **kwargs))
 
 
-async def decompress_zst(compressed_data):
+async def decompress_zst(compressed_data: bytes) -> bytes:
     assert isinstance(compressed_data, bytes)
     try:
         # https://python-zstandard.readthedocs.io/

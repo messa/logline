@@ -91,7 +91,7 @@ class Configuration:
             raise ConfigurationError('No client token hashes configured')
 
 
-def parse_address(s):
+def parse_address(s: str) -> tuple[str, int]:
     m = re.match(r'^([^:]+):([0-9]+)$', s)
     if m:
         host, port = m.groups()
