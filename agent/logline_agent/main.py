@@ -63,7 +63,6 @@ def setup_logging(verbose):
 
 
 def setup_log_file(log_file_path):
-    global stderr_log_handler
     from logging import DEBUG, INFO, ERROR, getLogger, Formatter
     from logging.handlers import WatchedFileHandler
     if not log_file_path:
