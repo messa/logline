@@ -2,12 +2,9 @@ from contextlib import ExitStack
 import hashlib
 from logging import getLogger
 import os
-from os import chdir
 from pathlib import Path
-from pytest import skip
 from socket import getfqdn
 from subprocess import Popen, check_call
-import sys
 from textwrap import dedent
 from time import sleep
 from time import monotonic as monotime
@@ -18,6 +15,10 @@ logger = getLogger(__name__)
 
 client_token = 'topsecret'
 client_token_hash = hashlib.sha1(client_token.encode()).hexdigest()
+
+
+def mangle_src_path(src_dir):
+    return str(Path(src_dir).resolve()).strip('/').replace('/', '~')
 
 
 selfsigned_cert_pem = dedent('''\
@@ -118,30 +119,32 @@ selfsigned_key_pem = dedent('''\
 selfsigned_key_password = 'topsecret'
 
 
-def test_send_log_file_over_tls(tmp_path):
-    chdir(tmp_path)
-    Path('cert.pem').write_text(selfsigned_cert_pem)
-    Path('key.pem').write_text(selfsigned_key_pem)
-    Path('agent-src').mkdir()
-    Path('server-dst').mkdir()
-    Path('agent-src/sample.log').write_text('2021-02-22 Hello world!\n')
-    mangled_src_path = str(Path('agent-src').resolve()).strip('/').replace('/', '~')
-    expected_dst_file = Path('server-dst') / getfqdn() / mangled_src_path / 'sample.log'
-    port = 9999
+def test_send_log_file_over_tls(tmp_path, free_port):
+    cert_pem = tmp_path / 'cert.pem'
+    key_pem = tmp_path / 'key.pem'
+    agent_src = tmp_path / 'agent-src'
+    server_dst = tmp_path / 'server-dst'
+    cert_pem.write_text(selfsigned_cert_pem)
+    key_pem.write_text(selfsigned_key_pem)
+    agent_src.mkdir()
+    server_dst.mkdir()
+    (agent_src / 'sample.log').write_text('2021-02-22 Hello world!\n')
+    expected_dst_file = server_dst / getfqdn() / mangle_src_path(agent_src) / 'sample.log'
+    port = free_port
     with ExitStack() as stack:
         agent_cmd = [
             'logline-agent',
-            '--scan', 'agent-src/*.log',
+            '--scan', str(agent_src / '*.log'),
             '--server', f'localhost:{port}',
             '--tls',
-            '--tls-cert', 'cert.pem',
+            '--tls-cert', str(cert_pem),
         ]
         server_cmd = [
             'logline-server',
             '--bind', f'localhost:{port}',
-            '--dest', 'server-dst',
-            '--tls-cert', 'cert.pem',
-            '--tls-key', 'key.pem',
+            '--dest', str(server_dst),
+            '--tls-cert', str(cert_pem),
+            '--tls-key', str(key_pem),
             '--client-token-hash', client_token_hash,
         ]
         server_process = stack.enter_context(Popen(server_cmd, env={**os.environ, 'TLS_KEY_PASSWORD': selfsigned_key_password}))
